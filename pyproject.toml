@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "OctoPrint-SDLongNames"
+version = "0.1.0"
+description = "Display long filenames for SD files where Cap:LONG_FILENAME:1 but Cap:EXTENDED_M20 is missing or disabled"
+authors = [
+    {name = "Kaedenn A. D. N.", email = "kaedenn@gmail.com"}
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+dynamic = [
+    "license"
+]
+
+requires-python = ">=3.7, <4"
+
+# any additional requirements (besides OctoPrint) should be listed here
+dependencies = []
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = [
+    "octoprint_sdlongnames",
+    "octoprint_sdlongnames.*"
+]
+
+[project.entry-points."octoprint.plugin"]
+sdlongnames = "octoprint_sdlongnames"
+
+[project.urls]
+Homepage = "https://github.com/Kaedenn/OctoPrint-SDLongNames"
+
+[project.optional-dependencies]
+develop = [
+    "go-task-bin"
+]
