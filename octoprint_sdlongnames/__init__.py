@@ -13,8 +13,6 @@ from __future__ import absolute_import
 
 import os
 import threading
-import time
-from typing import Any
 
 import octoprint.plugin
 from octoprint.events import Events
@@ -32,9 +30,9 @@ class SDLongNamesPlugin(
     Adds an M33 fallback for firmware that advertises LONG_FILENAME but does
     not support EXTENDED_M20.
 
-    OctoPrint already knows how to parse M33 responses and store them in the
-    corresponding SDFileData.longname field. This plugin supplies the missing
-    piece: issuing M33 once per unresolved short filename.
+    After an ordinary M20 listing, the plugin resolves unresolved short paths
+    one at a time through M33, stores the returned long paths in OctoPrint's
+    SD-file table, and republishes the resulting file list.
     """
 
     CAP_LONG_FILENAME = "LONG_FILENAME"
@@ -43,7 +41,6 @@ class SDLongNamesPlugin(
     def __init__(self) -> None:
         self._capabilities: dict[str, bool] = {}
 
-        self._comm: Any | None = None
         self._lookup_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
@@ -90,7 +87,6 @@ class SDLongNamesPlugin(
         """
 
         with self._state_lock:
-            self._comm = comm_instance
             self._capabilities = dict(firmware_capabilities)
 
         long_filename = bool(
@@ -140,21 +136,17 @@ class SDLongNamesPlugin(
         continues unchanged.
         """
 
-        stripped = line.strip()
-        lower = stripped.lower()
-
-        with self._state_lock:
-            self._comm = comm_instance
+        lower = line.lower()
 
         if lower == "end file list":
             self._schedule_enrichment(comm_instance)
 
         with self._state_lock:
             if self._lookup_active:
-                if self._looks_like_m33_response(stripped):
+                if self._looks_like_m33_response(lower):
                     self._lookup_response_seen = self._store_longname(
                         comm_instance,
-                        stripped,
+                        line,
                     )
 
                 elif lower == "ok" and self._lookup_response_seen:
@@ -176,7 +168,9 @@ class SDLongNamesPlugin(
         if not line or line.lower() == "ok":
             return False
 
-        if not line.startswith("/") or "//" in line or "\0" in line:
+        # We do not check for an absolute path because that breaks when trying
+        # to use the virtual printer.
+        if "//" in line or "\0" in line:
             return False
 
         _, extension = os.path.splitext(line.lower())
@@ -232,7 +226,6 @@ class SDLongNamesPlugin(
                 self._lookup_thread = None
 
                 newer_listing_exists = generation != self._refresh_generation
-                next_generation = self._refresh_generation
 
             if (
                 newer_listing_exists
@@ -304,10 +297,12 @@ class SDLongNamesPlugin(
 
             if not completed:
                 self._logger.warning(
-                    "Timed out waiting for M33 response for %s",
+                    "Timed out waiting for M33 response for %s; "
+                    "aborting this enrichment pass because response correlation "
+                    "can no longer be guaranteed",
                     filename,
                 )
-                continue
+                break
 
             if response_seen:
                 resolved += 1
@@ -367,12 +362,19 @@ class SDLongNamesPlugin(
             callback = getattr(comm_instance, "_callback")
             get_sd_files = getattr(comm_instance, "getSdFiles")
             callback.on_comm_sd_files(get_sd_files())
-        except (AttributeError, TypeError):
+        except AttributeError as err:
             self._logger.exception(
                 "Could not publish the enriched SD file list; "
                 "the long names were resolved internally, but the browser "
-                "may not show them until its next refresh"
+                "may not show them until its next refresh",
+                err
             )
+            return
+
+        self._plugin_manager.send_plugin_message(
+            self._identifier,
+            {"type": "refresh_files"},
+        )
 
     def _store_longname(
         self,
@@ -383,7 +385,13 @@ class SDLongNamesPlugin(
         if pending is None:
             return False
 
-        sd_files = comm_instance._sdFiles
+        sd_files = getattr(comm_instance, "_sdFiles", None)
+        if not isinstance(sd_files, dict):
+            self._logger.error(
+                "MachineCom._sdFiles is unavailable while storing %r",
+                longname,
+            )
+            return False
         relative = pending.lstrip("/")
 
         candidates = (
@@ -431,7 +439,6 @@ class SDLongNamesPlugin(
         }:
             with self._state_lock:
                 self._capabilities.clear()
-                self._comm = None
                 self._refresh_generation += 1
                 self._lookup_active = False
                 self._lookup_response_seen = False
@@ -468,7 +475,7 @@ class SDLongNamesPlugin(
 
 
 __plugin_name__ = "SDLongNames Plugin"
-__plugin_pythoncompat__ = ">=3,<4"
+__plugin_pythoncompat__ = ">=3.10,<4"
 
 def __plugin_load__():
     global __plugin_implementation__
