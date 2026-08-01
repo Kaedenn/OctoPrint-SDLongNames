@@ -1,15 +1,15 @@
 # coding=utf-8
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Peter Schultz
 
 """
-This plugin adds an M33 fallback for firmware that advertise
+This plugin adds an M33 fallback for firmware that advertises
     Cap:LONG_FILENAME
 but don't advertise
     Cap:EXTENDED_M20
 
 This should result in proper filenames in the SD Card listing.
 """
-
-from __future__ import absolute_import
 
 import os
 import threading
@@ -273,10 +273,9 @@ class SDLongNamesPlugin(
 
             self._logger.debug("Resolving SD filename with M33: %s", filename)
 
-            # Use OctoPrint's command path rather than writing to the serial
-            # connection directly. Its existing _gcode_M33_sending handler
-            # records the short filename, and its receive parser stores the
-            # returned long filename in SDFileData.
+            # Use OctoPrint's command path rather than writing directly to the serial
+            # connection. OctoPrint handles queueing and acknowledgement, while this
+            # plugin associates the M33 response with the pending SD-file entry.
             self._printer.commands(
                 [f"M33 {filename}"],
                 tags={
@@ -319,9 +318,8 @@ class SDLongNamesPlugin(
             "" if len(unresolved) == 1 else "s",
         )
 
-        # M33 updates MachineCom._sdFiles internally, but OctoPrint's normal
-        # SD-list callback was already sent when M20 completed. Publish the
-        # enriched list so the Files panel receives the new long names.
+        # The plugin has updated MachineCom._sdFiles, but OctoPrint's normal
+        # SD-list callback was already sent when M20 completed.
         self._publish_enriched_list(comm_instance)
 
     def _get_unresolved_files(self, comm_instance) -> list[str]:
@@ -362,12 +360,11 @@ class SDLongNamesPlugin(
             callback = getattr(comm_instance, "_callback")
             get_sd_files = getattr(comm_instance, "getSdFiles")
             callback.on_comm_sd_files(get_sd_files())
-        except AttributeError as err:
+        except AttributeError:
             self._logger.exception(
                 "Could not publish the enriched SD file list; "
                 "the long names were resolved internally, but the browser "
-                "may not show them until its next refresh",
-                err
+                "may not show them until its next refresh"
             )
             return
 

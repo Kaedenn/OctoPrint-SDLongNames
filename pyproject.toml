@@ -4,15 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "OctoPrint-SDLongNames"
-version = "0.1.0"
+version = "1.0.0"
 description = "Display long filenames for SD files where Cap:LONG_FILENAME:1 but Cap:EXTENDED_M20 is missing or disabled"
 authors = [
     {name = "Kaedenn A. D. N.", email = "kaedenn@gmail.com"}
 ]
 readme = {file = "README.md", content-type = "text/markdown"}
-dynamic = [
-    "license"
-]
+
+license = "AGPL-3.0-or-later"
 
 requires-python = ">=3.10, <4"
 
