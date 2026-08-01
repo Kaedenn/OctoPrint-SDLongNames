@@ -1,4 +1,2 @@
 include README.md
-recursive-include octoprint_sdlongnames/templates *
 recursive-include octoprint_sdlongnames/translations *
-recursive-include octoprint_sdlongnames/static *
