@@ -19,12 +19,14 @@ from typing import Any
 import octoprint.plugin
 from octoprint.events import Events
 from octoprint.filemanager import valid_file_type
+from octoprint.util.comm import SDFileData
 
 
 class SDLongNamesPlugin(
     octoprint.plugin.SettingsPlugin,
     octoprint.plugin.EventHandlerPlugin,
     octoprint.plugin.ShutdownPlugin,
+    octoprint.plugin.AssetPlugin,
 ):
     """
     Adds an M33 fallback for firmware that advertises LONG_FILENAME but does
@@ -52,6 +54,11 @@ class SDLongNamesPlugin(
         self._lookup_response_seen = False
         self._pending_filename: str | None = None
         self._refresh_generation = 0
+
+    def get_assets(self):
+        return {
+            "js": ["js/sdlongnames.js"],
+        }
 
     # ----------------------------------------------------------------------
     # SettingsPlugin
@@ -145,7 +152,10 @@ class SDLongNamesPlugin(
         with self._state_lock:
             if self._lookup_active:
                 if self._looks_like_m33_response(stripped):
-                    self._lookup_response_seen = True
+                    self._lookup_response_seen = self._store_longname(
+                        comm_instance,
+                        stripped,
+                    )
 
                 elif lower == "ok" and self._lookup_response_seen:
                     # OctoPrint has received both the M33 path and its
@@ -363,6 +373,52 @@ class SDLongNamesPlugin(
                 "the long names were resolved internally, but the browser "
                 "may not show them until its next refresh"
             )
+
+    def _store_longname(
+        self,
+        comm_instance,
+        longname: str,
+    ) -> bool:
+        pending = self._pending_filename
+        if pending is None:
+            return False
+
+        sd_files = comm_instance._sdFiles
+        relative = pending.lstrip("/")
+
+        candidates = (
+            pending,
+            relative,
+            "/" + relative,
+        )
+
+        for key in candidates:
+            data = sd_files.get(key)
+            if data is None:
+                continue
+
+            sd_files[key] = SDFileData(
+                name=data.name,
+                size=data.size,
+                timestamp=data.timestamp,
+                longname=longname,
+            )
+
+            self._logger.debug(
+                "Resolved SD filename %r to %r",
+                key,
+                longname,
+            )
+            return True
+
+        self._logger.warning(
+            "Could not match M33 response %r to pending file %r; "
+            "available keys: %r",
+            longname,
+            pending,
+            list(sd_files),
+        )
+        return False
 
     # ----------------------------------------------------------------------
     # Connection and shutdown cleanup
