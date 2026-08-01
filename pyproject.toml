@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "OctoPrint-SDLongNames"
-version = "1.0.0"
+version = "1.0.1"
 description = "Display long filenames for SD files where Cap:LONG_FILENAME:1 but Cap:EXTENDED_M20 is missing or disabled"
 authors = [
     {name = "Kaedenn A. D. N.", email = "kaedenn@gmail.com"}

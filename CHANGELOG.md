@@ -1,3 +1,11 @@
+# 1.0.1
+
+Fix quite a few problems not identified during local testing:
+1. Marlin returns "/???" for files that don't have a long name.
+2. Marlin truncates long filenames which then fail the mimetype check.
+
+Both of these cause the entire lookup to repeat, over and over, and never resolve.
+
 # 1.0.0
 
 Initial release.

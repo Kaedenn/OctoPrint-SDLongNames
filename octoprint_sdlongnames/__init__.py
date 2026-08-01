@@ -5,7 +5,7 @@
 """
 This plugin adds an M33 fallback for firmware that advertises
     Cap:LONG_FILENAME
-but don't advertise
+but does not advertise
     Cap:EXTENDED_M20
 
 This should result in proper filenames in the SD Card listing.
@@ -136,6 +136,8 @@ class SDLongNamesPlugin(
         continues unchanged.
         """
 
+        line = line.rstrip("\r\n")
+        self._logger.debug("Received and processing %r", line)
         lower = line.lower()
 
         if lower == "end file list":
@@ -143,38 +145,46 @@ class SDLongNamesPlugin(
 
         with self._state_lock:
             if self._lookup_active:
-                if self._looks_like_m33_response(lower):
-                    self._lookup_response_seen = self._store_longname(
-                        comm_instance,
-                        line,
-                    )
+                if self._is_m33_payload(line):
+                    self._lookup_response_seen = True
+
+                    if line == "/???":
+                        self._logger.debug(
+                            "M33 could not resolve %r",
+                            self._pending_filename,
+                        )
+                        self._lookup_resolved = False
+
+                    elif valid_file_type(line.lower(), "machinecode"):
+                        self._lookup_resolved = self._store_longname(
+                            comm_instance,
+                            line,
+                        )
+
+                    else:
+                        self._logger.warning(
+                            "M33 returned a truncated or malformed long filename "
+                            "for %r: %r",
+                            self._pending_filename,
+                            line,
+                        )
+                        self._lookup_resolved = False
 
                 elif lower == "ok" and self._lookup_response_seen:
-                    # OctoPrint has received both the M33 path and its
-                    # acknowledgement. Allow the worker to issue the next M33.
                     self._lookup_complete.set()
 
         return line
 
-    def _looks_like_m33_response(self, line: str) -> bool:
+    def _is_m33_payload(self, line: str) -> bool:
         """
-        Match the same basic condition used by OctoPrint's M33 response parser:
-        an absolute path with a recognized machine-code extension.
-
-        The pending-lookup check is performed by the caller, preventing random
-        printer messages from being interpreted as M33 responses.
+        Match basic conditions that indicate this may be an M33 response.
         """
 
         if not line or line.lower() == "ok":
             return False
-
-        # We do not check for an absolute path because that breaks when trying
-        # to use the virtual printer.
         if "//" in line or "\0" in line:
             return False
-
-        _, extension = os.path.splitext(line.lower())
-        return bool(extension and valid_file_type(line.lower(), "machinecode"))
+        return line.startswith("/")
 
     # ----------------------------------------------------------------------
     # Lookup scheduling and worker
