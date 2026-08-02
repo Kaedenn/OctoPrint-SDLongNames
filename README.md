@@ -14,6 +14,15 @@ operations.
 On firmware with `Cap:EXTENDED_M20`, OctoPrint already retrieves long filenames
 natively, so this plugin remains inactive.
 
+## Installation
+
+1. In the Releases area, right click on the `.whl` and click "Copy Link".
+2. In OctoPrint, click on the wrench icon to enter the settings.
+3. Click on `Plugin Manager` below `OCTOPRINT`.
+4. Enter your OctoPrint password.
+5. Scroll down to "... from URL" and paste the link.
+6. Click "Install".
+
 ## Requirements
 
 - OctoPrint 1.11.x
@@ -43,6 +52,16 @@ Bug reports are welcome! Please include:
 * Your printer model
 * Your firmware version (the output of `M115`)
 * The relevant Terminal output showing the `M20` and `M33` commands and responses
+
+## Firmware quirks
+
+Some Marlin-based firmware may:
+
+- Return `/???` when a long filename cannot be resolved.
+- Truncate extremely long filenames returned by `M33`.
+
+SDLongNames handles both cases gracefully. Files whose long names cannot be
+fully determined continue to use their 8.3 filename in the file list.
 
 ## License
 

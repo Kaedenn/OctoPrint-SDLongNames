@@ -7,7 +7,7 @@ $(function () {
 
         function refreshFileList() {
             self.refreshQueued = false;
-            self.filesViewModel.requestData({force: true});
+            self.filesViewModel.requestData();
         }
 
         self.onDataUpdaterPluginMessage = function (plugin, message) {

@@ -1,3 +1,7 @@
+# 1.0.2
+
+Fix issue with repeated querying after a printer disconnect and reconnect.
+
 # 1.0.1
 
 Fix quite a few problems not identified during local testing:
